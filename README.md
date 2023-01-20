@@ -128,3 +128,16 @@ spec:
    ```bash
    env TEST_ZONE_NAME='warbl.net.' make test
    ```
+   
+## Releases
+
+Dockerhub is set up to automatically build images from tagged commits.
+
+Example tags are:
+
+```text
+cert-manager-webhook-hetzner-0.3.0-rc4
+cert-manager-webhook-hetzner-0.3.0
+cert-manager-webhook-hetzner-0.1
+cert-manager-webhook-hetzner-1.1
+```
