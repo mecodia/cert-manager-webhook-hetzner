@@ -57,13 +57,13 @@ helm uninstall --namespace kube-system cert-manager-webhook-hetzner
 
 Create a `ClusterIssuer` or `Issuer` resource as following:
 ```yaml
-apiVersion: cert-manager.io/v1alpha2
+apiVersion: cert-manager.io/v1
 kind: ClusterIssuer
 metadata:
   name: letsencrypt-staging
 spec:
   acme:
-    # The ACME server URL
+    # The ACME server URL (attention, this is the staging one!)
     server: https://acme-staging-v02.api.letsencrypt.org/directory
 
     # Email address used for ACME registration
@@ -71,7 +71,7 @@ spec:
 
     # Name of a secret used to store the ACME account private key
     privateKeySecretRef:
-      name: letsencrypt-staging
+      name: letsencrypt-staging-account-key
 
     solvers:
       - dns01:
@@ -86,14 +86,14 @@ spec:
 
 For accessing the Hetzner DNS API, you need an API Token which you can create in the [DNS Console](https://dns.hetzner.com/settings/api-token).
 
-Currently we don't provide a way to use secrets for you API KEY.
+Currently, we don't provide a way to use secrets for you API KEY.
 
 ### Create a certificate
 
-Finally you can create certificates, for example:
+Finally, you can create certificates, for example:
 
 ```yaml
-apiVersion: cert-manager.io/v1alpha2
+apiVersion: cert-manager.io/v1
 kind: Certificate
 metadata:
   name: example-cert
@@ -112,35 +112,19 @@ spec:
 
 ### Requirements
 
--   [go](https://golang.org/) >= 1.13.0
+-   [go](https://golang.org/) >= 1.19
 
 ### Running the test suite
 
-1. Download test binaries
-    ```bash
-    scripts/fetch-test-binaries.sh
-    ```
-
 1. Create a new test account at [Hetzner DNS Console](https://dns.hetzner.com/) or use an existing account
 
-1. Go to `testdata/config.json` and replace your api key.
+1. Go to `testdata/hcloud-dns/config.json` and replace your api key.
 
 1. Download dependencies
     ```bash
     go mod download
     ```
-
-An example Go test file has been provided in [main_test.go](https://github.com/jetstack/cert-manager-webhook-example/blob/master/main_test.go).
-
-### Running the full suite with microk8s
-
-Tested with Ubuntu:
-
-```bash
-sudo snap install microk8s --classic
-sudo microk8s.enable dns rbac
-sudo microk8s.kubectl apply -f https://github.com/jetstack/cert-manager/releases/download/v0.12.0/cert-manager.yaml
-sudo microk8s.config > /tmp/microk8s.config
-export KUBECONFIG=/tmp/microk8s.config
-helm install --namespace kube-system cert-manager-webhook-hetzner deploy/hetzner-webhook
-```
+1. Run tests (replace zone name with one of your zones)
+   ```bash
+   env TEST_ZONE_NAME='warbl.net.' make test
+   ```
