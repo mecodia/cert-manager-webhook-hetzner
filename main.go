@@ -4,17 +4,17 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
-	"io/ioutil"
+	"github.com/cert-manager/cert-manager/pkg/acme/webhook/apis/acme/v1alpha1"
+	"io"
 	"net/http"
 	"os"
 	"strings"
 
-	extapi "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1beta1"
+	extapi "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
 	//"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/rest"
 
-	"github.com/jetstack/cert-manager/pkg/acme/webhook/apis/acme/v1alpha1"
-	"github.com/jetstack/cert-manager/pkg/acme/webhook/cmd"
+	"github.com/cert-manager/cert-manager/pkg/acme/webhook/cmd"
 )
 
 var GroupName = os.Getenv("GROUP_NAME")
@@ -36,7 +36,7 @@ func main() {
 
 // hetznerDNSProviderSolver implements the provider-specific logic needed to
 // 'present' an ACME challenge TXT record for your own DNS provider.
-// To do so, it must implement the `github.com/jetstack/cert-manager/pkg/acme/webhook.Solver`
+// To do so, it must implement the `github.com/cert-manager/cert-manager/pkg/acme/webhook.Solver`
 // interface.
 type hetznerDNSProviderSolver struct {
 	// If a Kubernetes 'clientset' is needed, you must:
@@ -85,8 +85,22 @@ type Zones struct {
 	Zones []Zone `json:"zones"`
 }
 
+func (zones Zones) String() string {
+	var zoneStrings = []string{}
+	for _, zone := range zones.Zones {
+		zoneStrings = append(zoneStrings, zone.String())
+	}
+	var joined = strings.Join(zoneStrings, ", ")
+	return joined
+}
+
 type Zone struct {
 	ZoneID string `json:"id"`
+	Name   string `json:"name"`
+}
+
+func (z Zone) String() string {
+	return fmt.Sprintf("Zone '%s' (%s)", z.Name, z.ZoneID)
 }
 
 type Entries struct {
@@ -113,9 +127,6 @@ func (c *hetznerDNSProviderSolver) Present(ch *v1alpha1.ChallengeRequest) error 
 		return err
 	}
 
-	// TODO: do something more useful with the decoded configuration
-	fmt.Printf("Decoded configuration %v", cfg)
-
 	name, zone := c.getDomainAndEntry(ch)
 
 	// Get Zones (GET https://dns.hetzner.com/api/v1/zones)
@@ -131,11 +142,19 @@ func (c *hetznerDNSProviderSolver) Present(ch *v1alpha1.ChallengeRequest) error 
 	resp, err := client.Do(req)
 	if err != nil {
 		fmt.Println("Failure : ", err)
+		return err
+	}
+	if resp.StatusCode != 200 {
+		return fmt.Errorf("did not get expected HTTP 200 but %s", resp.Status)
 	}
 
 	// Read Response Body
 	respBody := Zones{}
 	json.NewDecoder(resp.Body).Decode(&respBody)
+
+	if len(respBody.Zones) != 1 {
+		return fmt.Errorf("domain did not yield exactly 1 zone result but %d: %s", len(respBody.Zones), respBody.Zones)
+	}
 
 	// Display Results
 	fmt.Println("response Status : ", resp.Status)
@@ -159,13 +178,13 @@ func (c *hetznerDNSProviderSolver) Present(ch *v1alpha1.ChallengeRequest) error 
 	}
 
 	// Read Response Body
-	respBody2, _ := ioutil.ReadAll(resp.Body)
+	respBody2, _ := io.ReadAll(resp.Body)
 
 	// Display Results
 	fmt.Println("response Status : ", resp.Status)
 	fmt.Println("response Headers : ", resp.Header)
 	fmt.Println("response Body : ", string(respBody2))
-	// TODO: add code that sets a record in the DNS provider's console
+
 	return nil
 }
 
@@ -199,8 +218,11 @@ func (c *hetznerDNSProviderSolver) CleanUp(ch *v1alpha1.ChallengeRequest) error 
 	zResp, err := client.Do(zReq)
 	if err != nil {
 		fmt.Println("Failure : ", err)
+		return err
 	}
-
+	if zResp.StatusCode != 200 {
+		return fmt.Errorf("did not get expected HTTP 200 but %s", zResp.Status)
+	}
 	// Read Response Body
 	zRespBody := Zones{}
 	json.NewDecoder(zResp.Body).Decode(&zRespBody)
@@ -249,7 +271,7 @@ func (c *hetznerDNSProviderSolver) CleanUp(ch *v1alpha1.ChallengeRequest) error 
 			}
 
 			// Read Response Body
-			respBody, _ := ioutil.ReadAll(resp.Body)
+			respBody, _ := io.ReadAll(resp.Body)
 
 			// Display Results
 			fmt.Println("response Status : ", resp.Status)
@@ -257,8 +279,6 @@ func (c *hetznerDNSProviderSolver) CleanUp(ch *v1alpha1.ChallengeRequest) error 
 			fmt.Println("response Body : ", string(respBody))
 		}
 	}
-
-	// TODO: add code that deletes a record from the DNS provider's console
 	return nil
 }
 

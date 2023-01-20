@@ -43,7 +43,7 @@ Follow the [instructions](https://cert-manager.io/docs/installation/) using the 
 ```bash
 git clone https://github.com/mecodia/cert-manager-webhook-hetzner.git
 cd cert-manager-webhook-hetzner
-helm install --namespace kube-system cert-manager-webhook-hetzner ./deploy/cert-manager-webhook-hetzner
+helm install --namespace kube-system cert-manager-webhook-hetzner ./charts/cert-manager-webhook-hetzner
 ```
 
 **Note**: The kubernetes resources used to install the Webhook should be deployed within the same namespace as the cert-manager.

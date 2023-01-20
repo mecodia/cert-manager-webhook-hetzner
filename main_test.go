@@ -4,9 +4,7 @@ import (
 	"os"
 	"testing"
 
-	"github.com/jetstack/cert-manager/test/acme/dns"
-
-	"github.com/cert-manager/webhook-example/example"
+	"github.com/cert-manager/cert-manager/test/acme/dns"
 )
 
 var (
@@ -21,21 +19,10 @@ func TestRunsSuite(t *testing.T) {
 	//
 
 	// Uncomment the below fixture when implementing your custom DNS provider
-	//fixture := dns.NewFixture(&customDNSProviderSolver{},
-	//	dns.SetResolvedZone(zone),
-	//	dns.SetAllowAmbientCredentials(false),
-	//	dns.SetManifestPath("testdata/my-custom-solver"),
-	//	dns.SetBinariesPath("_test/kubebuilder/bin"),
-	//)
-
 	fixture := dns.NewFixture(&hetznerDNSProviderSolver{},
-		dns.SetBinariesPath(kubeBuilderBinPath),
 		dns.SetResolvedZone(zone),
 		dns.SetAllowAmbientCredentials(false),
-		dns.SetManifestPath("testdata/my-custom-solver"),
-		dns.SetDNSServer("127.0.0.1:59351"),
-		dns.SetUseAuthoritative(false),
+		dns.SetManifestPath("testdata/hcloud-dns"),
 	)
-
 	fixture.RunConformance(t)
 }
