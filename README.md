@@ -10,8 +10,14 @@ The Helm Chart is automatically published via [github pages](https://mecodia.git
 ## Requirements
 
 -   [helm](https://helm.sh/) >= v3.0.0
--   [kubernetes](https://kubernetes.io/) >= v1.14.0
--   [cert-manager](https://cert-manager.io/) >= 0.12.0
+-   [kubernetes](https://kubernetes.io/)
+-   [cert-manager](https://cert-manager.io/)
+
+### Last tested version combination
+
+- webhook image: v0.3.0
+- cert-manager: v1.20.2
+- kubernetes:  v1.23.15
 
 ## Configuration
 
@@ -96,12 +102,12 @@ Finally, you can create certificates, for example:
 apiVersion: cert-manager.io/v1
 kind: Certificate
 metadata:
-  name: example-cert
+  name: example-wildcard-cert
   namespace: cert-manager
 spec:
-  commonName: example.com
+  commonName: "*.example.com"
   dnsNames:
-    - example.com
+    - "*.example.com"
   issuerRef:
     kind: ClusterIssuer
     name: letsencrypt-staging
