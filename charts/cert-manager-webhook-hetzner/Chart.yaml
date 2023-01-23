@@ -1,8 +1,8 @@
 apiVersion: v1
 description: A Helm chart for the Hetzner DNS webhook for cert-manager
 name: cert-manager-webhook-hetzner
-version: 0.2.0
-appVersion: 0.2.0
+version: 0.3.0
+appVersion: 0.3.0
 maintainers:
   - name: mecodia GmbH
     url: https://github.com/mecodia/cert-manager-webhook-hetzner
