@@ -16,7 +16,7 @@ The Helm Chart is automatically published via [github pages](https://mecodia.git
 ### Last tested version combination
 
 - webhook image: v0.3.0
-- cert-manager: v1.20.2
+- cert-manager: v1.10.2
 - kubernetes:  v1.23.15
 
 ## Configuration
