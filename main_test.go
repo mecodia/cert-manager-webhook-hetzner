@@ -1,10 +1,10 @@
 package main
 
 import (
-	"github.com/cert-manager/cert-manager/test/acme/dns"
-
 	"os"
 	"testing"
+
+	"github.com/cert-manager/cert-manager/test/acme/dns"
 )
 
 var (
@@ -12,7 +12,8 @@ var (
 )
 
 func TestRunsSuite(t *testing.T) {
-	fixture := dns.NewFixture(&hetznerDNSProviderSolver{},
+	solver := hetznerDNSProviderSolver{}
+	fixture := dns.NewFixture(&solver,
 		dns.SetResolvedZone(zone),
 		dns.SetAllowAmbientCredentials(false),
 		dns.SetManifestPath("testdata/hcloud-dns"),

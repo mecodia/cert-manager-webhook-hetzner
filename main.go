@@ -133,7 +133,7 @@ func (c *hetznerDNSProviderSolver) Present(ch *v1alpha1.ChallengeRequest) error 
 	client := &http.Client{}
 
 	// Create request
-	req, err := http.NewRequest("GET", "https://dns.hetzner.com/api/v1/zones?search_name="+zone, nil)
+	req, err := http.NewRequest("GET", "https://dns.hetzner.com/api/v1/zones?name="+zone, nil)
 	// Headers
 	req.Header.Add("Auth-API-Token", cfg.APIKey)
 
@@ -149,7 +149,10 @@ func (c *hetznerDNSProviderSolver) Present(ch *v1alpha1.ChallengeRequest) error 
 
 	// Read Response Body
 	respBody := Zones{}
-	json.NewDecoder(resp.Body).Decode(&respBody)
+	err = json.NewDecoder(resp.Body).Decode(&respBody)
+	if err != nil {
+		return fmt.Errorf("error decoding JSON: %v", err)
+	}
 
 	if len(respBody.Zones) != 1 {
 		return fmt.Errorf("domain did not yield exactly 1 zone result but %d: %s", len(respBody.Zones), respBody.Zones)
@@ -209,7 +212,7 @@ func (c *hetznerDNSProviderSolver) CleanUp(ch *v1alpha1.ChallengeRequest) error 
 	client := &http.Client{}
 
 	// Create request
-	zReq, err := http.NewRequest("GET", "https://dns.hetzner.com/api/v1/zones?search_name="+zone, nil)
+	zReq, err := http.NewRequest("GET", "https://dns.hetzner.com/api/v1/zones?name="+zone, nil)
 	// Headers
 	zReq.Header.Add("Auth-API-Token", cfg.APIKey)
 
@@ -224,7 +227,10 @@ func (c *hetznerDNSProviderSolver) CleanUp(ch *v1alpha1.ChallengeRequest) error 
 	}
 	// Read Response Body
 	zRespBody := Zones{}
-	json.NewDecoder(zResp.Body).Decode(&zRespBody)
+	err = json.NewDecoder(zResp.Body).Decode(&zRespBody)
+	if err != nil {
+		return fmt.Errorf("error decoding JSON: %v", err)
+	}
 
 	// Display Results
 	fmt.Println("response Status : ", zResp.Status)
@@ -245,7 +251,10 @@ func (c *hetznerDNSProviderSolver) CleanUp(ch *v1alpha1.ChallengeRequest) error 
 
 	// Read Response Body
 	eRespBody := Entries{}
-	json.NewDecoder(eResp.Body).Decode(&eRespBody)
+	err = json.NewDecoder(eResp.Body).Decode(&eRespBody)
+	if err != nil {
+		return fmt.Errorf("error decoding JSON: %v", err)
+	}
 
 	// Display Results
 	fmt.Println("response Status : ", eResp.Status)

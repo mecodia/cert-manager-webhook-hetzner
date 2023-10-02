@@ -15,9 +15,9 @@ The Helm Chart is automatically published via [github pages](https://mecodia.git
 
 ### Last tested version combination
 
-- webhook image: v0.3.0
-- cert-manager: v1.10.2
-- kubernetes:  v1.23.15
+- webhook image: v0.4.0
+- cert-manager: v1.12.5
+- kubernetes:  v1.26.7
 
 ## Configuration
 
@@ -118,7 +118,7 @@ spec:
 
 ### Requirements
 
--   [go](https://golang.org/) >= 1.19
+-   [go](https://golang.org/) >= 1.21
 
 ### Running the test suite
 
@@ -147,3 +147,5 @@ cert-manager-webhook-hetzner-0.3.0
 cert-manager-webhook-hetzner-0.1
 cert-manager-webhook-hetzner-1.1
 ```
+
+Github should take care of the helm chart updates.
