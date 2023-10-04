@@ -14,7 +14,7 @@ certManager:
 
 image:
   repository: mecodia/cert-manager-webhook-hetzner
-  tag: 0.3.0
+  tag: 0.4.0
   pullPolicy: Always
 
 nameOverride: "webhook-hetzner"
