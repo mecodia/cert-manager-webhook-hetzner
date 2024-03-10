@@ -2,21 +2,36 @@ package main
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"fmt"
-	"github.com/cert-manager/cert-manager/pkg/acme/webhook/apis/acme/v1alpha1"
 	"io"
 	"net/http"
 	"os"
 	"strings"
 
+	"github.com/cert-manager/cert-manager/pkg/acme/webhook/apis/acme/v1alpha1"
+
+	logf "github.com/cert-manager/cert-manager/pkg/logs"
+
+	corev1 "k8s.io/api/core/v1"
 	extapi "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/rest"
 
 	"github.com/cert-manager/cert-manager/pkg/acme/webhook/cmd"
 )
 
-var GroupName = os.Getenv("GROUP_NAME")
+const (
+	serviceAccountNamespaceFile = "/run/secrets/kubernetes.io/serviceaccount/namespace"
+)
+
+var (
+	GroupName = os.Getenv("GROUP_NAME")
+	log = logf.Log
+)
+
 
 func main() {
 	if GroupName == "" {
@@ -45,6 +60,15 @@ type hetznerDNSProviderSolver struct {
 	// 4. ensure your webhook's service account has the required RBAC role
 	//    assigned to it for interacting with the Kubernetes APIs you need.
 	//client kubernetes.Clientset
+}
+
+type hetznerDNSProviderConfigOpts struct {
+	ApiKeySecretRef struct {
+		Name string `json:"name"`
+		Key string `json:"key"`
+	} `json:"apiKeySecretRef,omitempty"`
+
+	APIKey string `json:"apiKey,omitempty"`
 }
 
 // hetznerDNSProviderConfig is a structure that is used to decode into when
@@ -125,6 +149,7 @@ func (c *hetznerDNSProviderSolver) Present(ch *v1alpha1.ChallengeRequest) error 
 	if err != nil {
 		return err
 	}
+	log.Info("Presenting DNS challenge", "name", ch.DNSName, "namespace", ch.ResourceNamespace)
 
 	name, zone := c.getDomainAndEntry(ch)
 
@@ -134,13 +159,16 @@ func (c *hetznerDNSProviderSolver) Present(ch *v1alpha1.ChallengeRequest) error 
 
 	// Create request
 	req, err := http.NewRequest("GET", "https://dns.hetzner.com/api/v1/zones?name="+zone, nil)
+	if err != nil {
+		return err
+	}
 	// Headers
 	req.Header.Add("Auth-API-Token", cfg.APIKey)
 
 	// Fetch Request
 	resp, err := client.Do(req)
 	if err != nil {
-		fmt.Println("Failure : ", err)
+		log.Error(err, "Unable to get DNS Zones")
 		return err
 	}
 	if resp.StatusCode != 200 {
@@ -159,16 +187,23 @@ func (c *hetznerDNSProviderSolver) Present(ch *v1alpha1.ChallengeRequest) error 
 	}
 
 	// Display Results
-	fmt.Println("response Status : ", resp.Status)
-	fmt.Println("response Headers : ", resp.Header)
-	fmt.Println("response Body : ", respBody.Zones[0].ZoneID)
+	log.V(4).Info("response",
+		"status", resp.Status,
+		"headers", resp.Header,
+		"body", respBody.Zones[0].ZoneID)
 
 	// Create DNS
 	entry, err := json.Marshal(Entry{"", name, 300, "TXT", ch.Key, respBody.Zones[0].ZoneID})
+	if err != nil {
+		return err
+	}
 	body := bytes.NewBuffer(entry)
 
 	// Create request
 	req, err = http.NewRequest("POST", "https://dns.hetzner.com/api/v1/records", body)
+	if err != nil {
+		return err
+	}
 	// Headers
 	req.Header.Add("Content-Type", "application/json")
 	req.Header.Add("Auth-API-Token", cfg.APIKey)
@@ -176,16 +211,18 @@ func (c *hetznerDNSProviderSolver) Present(ch *v1alpha1.ChallengeRequest) error 
 	// Fetch Request
 	resp, err = client.Do(req)
 	if err != nil {
-		fmt.Println("Failure : ", err)
+		log.Error(err, "Unable to update DNS record")
+		return err
 	}
 
 	// Read Response Body
 	respBody2, _ := io.ReadAll(resp.Body)
 
 	// Display Results
-	fmt.Println("response Status : ", resp.Status)
-	fmt.Println("response Headers : ", resp.Header)
-	fmt.Println("response Body : ", string(respBody2))
+	log.V(4).Info("response",
+		"status", resp.Status,
+		"headers", resp.Header,
+		"body", string(respBody2))
 
 	return nil
 }
@@ -201,9 +238,7 @@ func (c *hetznerDNSProviderSolver) CleanUp(ch *v1alpha1.ChallengeRequest) error 
 	if err != nil {
 		return err
 	}
-
-	// TODO: do something more useful with the decoded configuration
-	fmt.Printf("Decoded configuration %v", cfg)
+	log.Info("Cleaning up challenge", "name", ch.DNSName, "namespace", ch.ResourceNamespace)
 
 	name, zone := c.getDomainAndEntry(ch)
 
@@ -213,13 +248,16 @@ func (c *hetznerDNSProviderSolver) CleanUp(ch *v1alpha1.ChallengeRequest) error 
 
 	// Create request
 	zReq, err := http.NewRequest("GET", "https://dns.hetzner.com/api/v1/zones?name="+zone, nil)
+	if err != nil {
+		return err
+	}
 	// Headers
 	zReq.Header.Add("Auth-API-Token", cfg.APIKey)
 
 	// Fetch Request
 	zResp, err := client.Do(zReq)
 	if err != nil {
-		fmt.Println("Failure : ", err)
+		log.Error(err, "Failed getting DNS zone")
 		return err
 	}
 	if zResp.StatusCode != 200 {
@@ -233,20 +271,25 @@ func (c *hetznerDNSProviderSolver) CleanUp(ch *v1alpha1.ChallengeRequest) error 
 	}
 
 	// Display Results
-	fmt.Println("response Status : ", zResp.Status)
-	fmt.Println("response Headers : ", zResp.Header)
-	fmt.Println("response Body : ", zRespBody.Zones[0].ZoneID)
-	fmt.Println("response Body : ", name)
+	log.V(4).Info("response",
+		"status", zResp.Status,
+		"headers", zResp.Header,
+		"zoneID", zRespBody.Zones[0].ZoneID,
+		"name", name)
 
 	// Create request
 	eReq, err := http.NewRequest("GET", "https://dns.hetzner.com/api/v1/records?zone_id="+zRespBody.Zones[0].ZoneID, nil)
+	if err != nil {
+		return err
+	}
 	// Headers
 	eReq.Header.Add("Auth-API-Token", cfg.APIKey)
 
 	// Fetch Request
 	eResp, err := client.Do(eReq)
 	if err != nil {
-		fmt.Println("Failure : ", err)
+		log.Error(err, "Cannot fetch DNS records")
+		return err
 	}
 
 	// Read Response Body
@@ -257,16 +300,21 @@ func (c *hetznerDNSProviderSolver) CleanUp(ch *v1alpha1.ChallengeRequest) error 
 	}
 
 	// Display Results
-	fmt.Println("response Status : ", eResp.Status)
-	fmt.Println("response Headers : ", eResp.Header)
-	fmt.Println("response Body : ", eRespBody)
+	log.V(4).Info("response",
+		"status", eResp.Status,
+		"headers", eResp.Header,
+		"body", eRespBody)
 
 	for _, e := range eRespBody.Records {
 		if e.Type == "TXT" && e.Name == name && e.Value == ch.Key {
-			fmt.Println("Found DOMAIN: ", e)
+			log.V(4).Info("Found Domain", "record", fmt.Sprintf("%+v", e))
 			// Delete Record (DELETE https://dns.hetzner.com/api/v1/records/1)
 			// Create request
 			req, err := http.NewRequest("DELETE", "https://dns.hetzner.com/api/v1/records/"+e.ID, nil)
+			if err != nil {
+				log.Error(err, "Unable to create new delete request")
+				continue
+			}
 
 			// Headers
 			req.Header.Add("Auth-API-Token", cfg.APIKey)
@@ -275,16 +323,18 @@ func (c *hetznerDNSProviderSolver) CleanUp(ch *v1alpha1.ChallengeRequest) error 
 			resp, err := client.Do(req)
 
 			if err != nil {
-				fmt.Println("Failure : ", err)
+				log.Error(err, "Cannot delete DNS record", "name", e.Name, "value", e.Value)
+				continue
 			}
 
 			// Read Response Body
 			respBody, _ := io.ReadAll(resp.Body)
 
 			// Display Results
-			fmt.Println("response Status : ", resp.Status)
-			fmt.Println("response Headers : ", resp.Header)
-			fmt.Println("response Body : ", string(respBody))
+			log.V(4).Info("response",
+				"status", resp.Status,
+				"headers", resp.Header,
+				"body", string(respBody))
 		}
 	}
 	return nil
@@ -305,17 +355,81 @@ func (c *hetznerDNSProviderSolver) Initialize(kubeClientConfig *rest.Config, sto
 
 // loadConfig is a small helper function that decodes JSON configuration into
 // the typed config struct.
-func loadConfig(cfgJSON *extapi.JSON) (hetznerDNSProviderConfig, error) {
-	cfg := hetznerDNSProviderConfig{}
+func loadConfig(cfgJSON *extapi.JSON) (c hetznerDNSProviderConfig, err error) {
+	ref := hetznerDNSProviderConfigOpts{}
+
 	// handle the 'base case' where no configuration has been provided
 	if cfgJSON == nil {
-		return cfg, nil
+		return c, nil
 	}
-	if err := json.Unmarshal(cfgJSON.Raw, &cfg); err != nil {
-		return cfg, fmt.Errorf("error decoding solver config: %v", err)
+	if err := json.Unmarshal(cfgJSON.Raw, &ref); err != nil {
+		return c, fmt.Errorf("error decoding solver config: %+v", err)
+	}
+	if ref.APIKey != "" {
+		log.Info("Please migrate to a secret based solver configuration see https://github.com/mecodia/cert-manager-webhook-hetzner#issuer for more details")
+		c.APIKey = ref.APIKey
+		return c, nil
+	}
+	key, err := ref.getApiKeyFromSecret()
+	if err != nil {
+		return c, err
+	}
+	c.APIKey = key
+	return c, nil
+}
+
+// get API Key from Secret
+func (r *hetznerDNSProviderConfigOpts) getApiKeyFromSecret() (string, error) {
+	ns, err := GetNamespace()
+	if err != nil {
+		return "", err
 	}
 
-	return cfg, nil
+	secret, err := GetSecret(r.ApiKeySecretRef.Name, ns)
+	if err != nil {
+		return "", err
+	}
+
+	key := string(secret.Data[r.ApiKeySecretRef.Key])
+	return key, nil
+}
+
+func GetNamespace() (string, error) {
+	// get namespace from container environment
+	data, err := os.ReadFile(serviceAccountNamespaceFile)
+	if err != nil {
+		return "", err
+	}
+	log.V(4).Info("Running in namespace", "namespace", string(data))
+	return string(data), nil
+}
+
+func GetSecret(name string, namespace string) (*corev1.Secret, error) {
+	c, err := NewKubernetesConfig()
+	if err != nil {
+		return nil, err
+	}
+	// get secret from kubernetes
+	secret, err := c.CoreV1().Secrets(namespace).Get(context.TODO(), name, metav1.GetOptions{})
+	if err != nil {
+		return nil, err
+	}
+	log.V(4).Info("Gathered Secret from apiserver", "name", name)
+	return secret, nil
+}
+
+func NewKubernetesConfig() (*kubernetes.Clientset, error) {
+	// creates the in-cluster config
+	config, err := rest.InClusterConfig()
+	if err != nil {
+		return nil, err
+	}
+	// creates the clientset
+	clientset, err := kubernetes.NewForConfig(config)
+	if err != nil {
+		return nil, err
+	}
+	return clientset, nil
 }
 
 func (c *hetznerDNSProviderSolver) getDomainAndEntry(ch *v1alpha1.ChallengeRequest) (string, string) {

@@ -15,7 +15,7 @@ The Helm Chart is automatically published via [github pages](https://mecodia.git
 
 ### Last tested version combination
 
-- webhook image: v0.4.0
+- webhook image: v0.5.0
 - cert-manager: v1.12.5
 - kubernetes:  v1.26.7
 
@@ -63,6 +63,15 @@ helm uninstall --namespace kube-system cert-manager-webhook-hetzner
 
 Create a `ClusterIssuer` or `Issuer` resource as following:
 ```yaml
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: cert-manager-webhook-hetzner-key
+data:
+  apiKey: <YOUR-BASE64-ENCODED-DNS-API-KEY-HERE>
+type: Opaque
+---
 apiVersion: cert-manager.io/v1
 kind: ClusterIssuer
 metadata:
@@ -85,7 +94,9 @@ spec:
             groupName: dns.hetzner.cloud
             solverName: hetzner
             config:
-              APIKey: <YOUR-DNS-API-KEY-HERE>
+              apiKeySecretRef:
+                name: cert-manager-webhook-hetzner-key
+                key: apiKey
 ```
 
 ### Credentials
