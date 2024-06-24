@@ -1,3 +1,7 @@
+**ARCHIVED PROJECT**
+
+We recommend using <https://github.com/vadimkim/cert-manager-webhook-hetzner> instead.
+
 # ACME Webhook for Hetzner DNS
 
 This project provides a [cert-manager](https://cert-manager.io) ACME Webhook for [Hetzner DNS](https://hetzner.de/) 
